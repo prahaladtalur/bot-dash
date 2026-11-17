@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------------------------
 // DISPLAY UNIT. Every amount in dashboard.json is US dollars (fields end in _usd). This constant
-// only changes the LABEL printed next to a number. Nothing is converted. "$" shows real units.
-const UNIT = "$";
+// only changes the LABEL printed next to a number. Nothing is converted: 1 displayed ETH = $1.
+// Set it to "$" to show real units.
+const UNIT = "ETH";
 // ---------------------------------------------------------------------------------------------
 
 const REFRESH_MS = 20_000;                                 // poll the data file; the bots' box publishes it every ~10 min
@@ -22,7 +23,12 @@ const localStamp = iso => iso ? new Date(iso).toLocaleString([], { month: "short
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 // Categorical series colours (never red/green: those mean profit and loss).
 const SERIES = { combined: "#e7ecf6", copybot: "#4cc9f0", scanbot: "#ffb000" };
-const SHADOW_COLOURS = ["#a78bfa", "#8b97b3", "#f472b6"];
+const SHADOW_COLOURS = ["#a78bfa", "#8b97b3", "#f472b6", "#e2c08d", "#7dd3fc", "#d8b4fe"];
+const EXPERIMENTS = {                                       // plain-language name of each shadow book
+  current: "Live rules (control)", regime_throttled: "Skip buys when SOL is falling", challenger: "MFE/MAE proposal",
+  breakeven: "After +10%, never let it end in a loss", early_target: "First target +12% instead of +20%",
+  stall_exit: "Exit if not +5% within 45 min", no_copy_sell: "Ignore the leader's sells" };
+const shownShadows = new Set(["current"]);                 // experiment lines start hidden: click the legend to show one
 const FILTERS = [["all", "All"], ["trades", "Trades"], ["signals", "Signals"], ["skips", "Skips"], ["system", "System"]];
 const GROUP = { BUY: "trades", SELL: "trades", CLOSE: "trades", SKIP: "skips", SIGNAL: "signals", REFRESH: "system", PAUSE: "system", RESUME: "system",
                 STREAM: "system", WATCH: "system", RPC: "system", ALERT: "system" };
@@ -140,11 +146,11 @@ function render() {
   renderGate(bots.copybot);
   renderRisk(shown);
   renderLeaders((bots.copybot || {}).leaders || []);
+  renderExperiments(bots);
   renderTrades(shown);
 
   $("foot").innerHTML = `Read-only. ${keys.length ? "Paper trading unless the mode badge says otherwise. " : ""}` +
-    (UNIT === "$" ? "Amounts are US dollars; nothing is converted." : `<b>Amounts are US dollars shown with the label ${esc(UNIT)}; nothing is converted (1 ${esc(UNIT)} here = $1).</b>`) +
-    ` Times are in your local time zone. The page checks for new data every ${REFRESH_MS / 1000}s. Not financial advice.`;
+    `Times are in your local time zone. The page checks for new data every ${REFRESH_MS / 1000}s. Not financial advice.`;
 
   animateNumbers(document); flashChanged(document);
   firstRender = false; countUp = false;
@@ -217,11 +223,11 @@ function renderChart(bots, keys) {
   } else {
     const b = bots[view];
     sets.push({ label: b.name, color: SERIES[view] || "#ccc", base: b.bankroll_usd, pts: b.equity_curve || [], fill: true });
-    Object.entries(b.shadow || {}).forEach(([name, book], i) => sets.push({ label: "shadow: " + name, color: SHADOW_COLOURS[i % 3], base: b.bankroll_usd, pts: book.curve || [], dash: true }));
+    Object.entries(b.shadow || {}).forEach(([name, book], i) => sets.push({ label: "shadow: " + name, key: name, color: SHADOW_COLOURS[i % SHADOW_COLOURS.length], base: b.bankroll_usd, pts: book.curve || [], dash: true, hidden: !shownShadows.has(name) }));
   }
-  const usable = sets.filter(s => s.pts.length);
-  $("curve-note").textContent = usable.length ? "after fees, by closed trade" + (view !== "combined" && Object.keys(bots[view].shadow || {}).length ? "; dashed = shadow books (never traded)" : "") : "starts with the first closed trade";
-  $("legend").innerHTML = usable.map(s => `<span><i style="background:${s.color};${s.dash ? "opacity:.7" : ""}"></i>${esc(s.label)}</span>`).join("");
+  const withData = sets.filter(s => s.pts.length), usable = withData.filter(s => !s.hidden);
+  $("curve-note").textContent = withData.length ? "after fees, by closed trade" + (view !== "combined" && Object.keys(bots[view].shadow || {}).length ? "; dashed = shadow books (never traded); click the legend to show experiments" : "") : "starts with the first closed trade";
+  $("legend").innerHTML = withData.map(s => `<span ${s.key ? `class="toggle${s.hidden ? " off" : ""}" data-shadow="${esc(s.key)}" role="button" tabindex="0" aria-pressed="${!s.hidden}"` : ""}><i style="background:${s.color};${s.dash ? "opacity:.7" : ""}"></i>${esc(s.label)}</span>`).join("");
   const box = $("chart");
   if (!usable.length) { box.innerHTML = '<div class="empty">No closed trades yet.</div>'; return; }
   const W = Math.max(320, box.clientWidth || 800), H = box.clientHeight || 300, L = 52, R = 12, T = 10, B = 24;
@@ -260,6 +266,21 @@ function renderChart(bots, keys) {
     tip.style.opacity = 1; tip.style.left = Math.min(r.width - 220, Math.max(0, ev.clientX - r.left + 14)) + "px"; tip.style.top = "8px";
   });
   svg.addEventListener("mouseleave", () => { tip.style.opacity = 0; hair.setAttribute("opacity", 0); });
+}
+
+function renderExperiments(bots) {
+  const books = Object.entries(((bots.copybot || {}).shadow) || {});
+  const control = (books.find(([n]) => n === "current") || [])[1];
+  const minTrades = 30;
+  $("experiments").innerHTML = books.length ? `<table><thead><tr><th class="l">EXPERIMENT</th><th class="l">BOOK</th><th>TRADES</th><th>WIN RATE</th><th>PROFIT FACTOR</th><th>NET</th><th>VS LIVE RULES</th><th class="l">READ</th></tr></thead><tbody>` +
+    books.sort(([a], [b]) => (a !== "current") - (b !== "current") || a.localeCompare(b)).map(([name, b]) => {
+      const diff = control && name !== "current" ? (b.pnl_all_usd || 0) - (control.pnl_all_usd || 0) : null;
+      const verdict = name === "current" ? "baseline" : b.closed_trades < minTrades ? `too few trades (${b.closed_trades}/${minTrades})` : diff > 0 ? "ahead: test it further" : "not better";
+      return `<tr><td class="l"><b>${esc(EXPERIMENTS[name] || name)}</b></td><td class="l muted">${esc(name)}</td><td>${b.closed_trades ?? 0}</td>
+        <td>${b.win_rate == null ? "--" : Math.round(b.win_rate * 100) + "%"}</td><td>${b.profit_factor == null ? "--" : b.profit_factor.toFixed(2)}</td>
+        <td class="${cls(b.pnl_all_usd)}">${money(b.pnl_all_usd, true)}</td><td class="${cls(diff)}">${diff == null ? "--" : money(diff, true)}</td>
+        <td class="l muted">${esc(verdict)}</td></tr>`; }).join("") + "</tbody></table>"
+    : '<div class="empty">No shadow trades closed yet. Each experiment fills in as live signals close.</div>';
 }
 
 function renderPositions(shown) {
@@ -369,6 +390,10 @@ $("filters").addEventListener("click", e => { const b = e.target.closest("button
 $("leaders").addEventListener("click", e => { if (e.target.id === "toggle-rejected" && data) { showRejected = !showRejected; renderLeaders((data.bots.copybot || {}).leaders || []); } });
 $("trades").addEventListener("click", e => { const th = e.target.closest("th[data-sort]"); if (!th || !data) return;
   sortDir = th.dataset.sort === sortKey ? -sortDir : -1; sortKey = th.dataset.sort; renderTrades(view === "combined" ? Object.values(data.bots) : [data.bots[view]]); });
+const toggleShadow = el => { const k = el && el.dataset.shadow; if (!k || !data) return;
+  shownShadows.has(k) ? shownShadows.delete(k) : shownShadows.add(k); renderChart(data.bots, Object.keys(data.bots)); };
+$("legend").addEventListener("click", e => toggleShadow(e.target.closest("[data-shadow]")));
+$("legend").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleShadow(e.target.closest("[data-shadow]")); } });
 let resizeT; addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => data && renderChart(data.bots, Object.keys(data.bots)), 200); });
 load();
 setInterval(load, REFRESH_MS);

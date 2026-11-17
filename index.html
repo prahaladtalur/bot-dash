@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#06080f">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%234cc9f0%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 text-anchor=%22middle%22 font-family=%22monospace%22 font-weight=%22700%22 fill=%22%2306080f%22%3E$%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%234cc9f0%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 text-anchor=%22middle%22 font-family=%22monospace%22 font-weight=%22700%22 fill=%22%2306080f%22%3E%CE%9E%3C/text%3E%3C/svg%3E">
 <title>Copy-bot desk · live</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -103,6 +103,9 @@
   .areafade { opacity:0; animation:fadein 1.2s .4s forwards; }
   .legend { display:flex; flex-wrap:wrap; gap:6px 14px; padding:0 16px 14px; font-size:12px; color:var(--muted); }
   .legend i { display:inline-block; width:14px; height:3px; border-radius:2px; margin-right:6px; vertical-align:middle; }
+  .legend .toggle { cursor:pointer; user-select:none; transition:opacity .2s ease; }
+  .legend .toggle:hover { color:var(--text, #e7ecf6); }
+  .legend .toggle.off { opacity:.45; text-decoration:line-through; }
   .tip { position:absolute; pointer-events:none; background:rgba(10,14,26,.95); border:1px solid var(--line); border-radius:10px; padding:8px 10px;
          font:12px var(--mono); white-space:nowrap; opacity:0; transition:opacity .15s; z-index:2; box-shadow:0 8px 24px rgba(0,0,0,.4); }
 
@@ -192,7 +195,7 @@
 <body>
 <div id="pollbar"></div>
 <header>
-  <div class="brand"><div class="logo"><b>$</b></div><h1>Copy-bot <span>desk</span></h1></div>
+  <div class="brand"><div class="logo"><b>Ξ</b></div><h1>Copy-bot <span>desk</span></h1></div>
   <span class="pill paper" id="mode">--</span>
   <span class="pill" id="fresh"><span class="dot"></span>loading</span>
   <span class="grow"></span>
@@ -222,7 +225,8 @@
   <section class="card c7" style="--i:6"><h2>Risk &amp; health <small>kill switch, stream, heartbeat</small></h2><div class="body" id="risk"></div></section>
 
   <section class="card c12" style="--i:7"><h2>Leaders <small>our result copying each one, not theirs</small></h2><div class="scroll" id="leaders"></div></section>
-  <section class="card c12" style="--i:8"><h2>Recent trades <small>last 50 · click a column to sort</small></h2><div class="scroll" id="trades"></div></section>
+  <section class="card c12" style="--i:8"><h2>Exit experiments <small>same signals, one rule changed each · never traded</small></h2><div class="scroll" id="experiments"></div></section>
+  <section class="card c12" style="--i:9"><h2>Recent trades <small>last 50 · click a column to sort</small></h2><div class="scroll" id="trades"></div></section>
 </main>
 
 <footer id="foot"></footer>
